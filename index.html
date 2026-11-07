@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>카카오톡 PC 메시지 생성기</title>
+<style>
+:root{
+  --bg:#bacee0; --me:#fee500; --other:#ffffff; --sub:#4b5a68; --unread:#f5b800;
+  --page:#eceff1; --panel:#ffffff; --line:#dfe3e6; --text:#1e1e1e; --muted:#6b7680;
+}
+@media (prefers-color-scheme:dark){
+  :root{--page:#1b1d20; --panel:#25282c; --line:#383c41; --text:#eceff1; --muted:#98a2ab}
+}
+*{box-sizing:border-box}
+html,body{margin:0}
+body{background:var(--page);color:var(--text);font:14px/1.4 "Malgun Gothic","Apple SD Gothic Neo","Noto Sans KR",sans-serif;
+  padding:20px;padding-top:calc(20px + env(safe-area-inset-top,0px));padding-bottom:calc(20px + env(safe-area-inset-bottom,0px))}
+.app{max-width:900px;margin:0 auto;display:grid;grid-template-columns:minmax(0,1fr) 392px;gap:20px;align-items:start}
+@media (max-width:860px){.app{grid-template-columns:minmax(0,1fr)}}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:16px}
+h1{font-size:17px;margin:0 0 14px}
+label.f{display:flex;align-items:center;gap:8px;margin-bottom:10px;color:var(--muted);font-size:13px}
+label.f input[type=text]{flex:1}
+input[type=text],input[type=time],select,textarea{font:inherit;color:var(--text);background:transparent;border:1px solid var(--line);border-radius:6px;padding:6px 8px;min-width:0}
+input:focus,select:focus,textarea:focus,button:focus-visible{outline:2px solid #3b82f6;outline-offset:1px}
+button{font:inherit;cursor:pointer;border:1px solid var(--line);background:transparent;color:var(--text);border-radius:6px;padding:6px 10px}
+button.pri{background:var(--me);border-color:var(--me);color:#191919;font-weight:700}
+.add{display:grid;grid-template-columns:auto 1fr auto auto;gap:6px;margin:14px 0 10px;padding-top:14px;border-top:1px solid var(--line)}
+.items{display:flex;flex-direction:column;gap:6px;max-height:420px;overflow:auto}
+.it{display:grid;grid-template-columns:auto 1fr auto auto auto auto auto;gap:4px;align-items:center}
+.it .side{width:46px;padding:5px 0;font-size:12px}
+.it .side.me{background:var(--me);color:#191919;border-color:var(--me)}
+.it .side.date{background:var(--line)}
+.it button.mini{padding:4px 7px}
+.it .un{display:flex;align-items:center;gap:2px;font-size:12px;color:var(--muted)}
+.actions{display:flex;gap:6px;flex-wrap:wrap;margin-top:14px}
+.hint{color:var(--muted);font-size:12px;margin:8px 0 0}
+.stage{overflow:auto}
+
+/* ===== 카카오톡 PC 채팅 영역 (실제 스크린샷 픽셀 측정값 기준) ===== */
+#chat{
+  width:364px;background:var(--bg);padding:10px 12px 16px 15px;
+  font-family:"MalgunLocal","Malgun Gothic","맑은 고딕","Apple SD Gothic Neo","Noto Sans KR",sans-serif;font-size:12px;line-height:17px;color:#000;
+}
+#chat .row{display:flex;align-items:flex-start;margin-top:7px}
+#chat .row.first.other{margin-top:15px}
+#chat .row.first.me{margin-top:16px}
+#chat .row.first.first:first-child{margin-top:0}
+#chat .row:first-child{margin-top:0}
+#chat .row.me{justify-content:flex-end}
+#chat .pf,#chat .sp{width:40px;height:40px;flex:none;margin-right:12px}
+#chat .pf{border-radius:16px;overflow:hidden}
+#chat .pf img,#chat .pf svg{width:100%;height:100%;object-fit:cover;display:block}
+#chat .col{display:flex;flex-direction:column;align-items:flex-start;min-width:0}
+#chat .nm{font-size:12px;line-height:16px;color:#191919;margin:0 0 5px 0;position:relative;top:-3px;left:-1px}
+#chat .ln{display:flex;align-items:flex-end}
+#chat .bb{position:relative;padding:4px 8px 8px;border-radius:3.5px;max-width:243px;white-space:pre-wrap;word-break:break-all;background:var(--other)}
+#chat .me .bb{background:var(--me)}
+#chat .other.first .bb::before{content:"";position:absolute;top:6px;left:-6px;border-right:6px solid var(--other);border-bottom:7px solid transparent}
+#chat .me.first .bb::before{content:"";position:absolute;top:6px;right:-6px;border-left:6px solid var(--me);border-bottom:8px solid transparent}
+#chat .mt{display:flex;flex-direction:column;margin:0 4px;padding-bottom:1px;font-size:11px;line-height:13px;color:#30353a;white-space:nowrap}
+#chat .me .mt{align-items:flex-end;margin-right:5px}
+#chat .mt .u{color:#f5b800;font-weight:700}
+#chat .date{margin:16px auto 6px;width:max-content;max-width:100%;padding:4px 14px;border-radius:13px;background:rgba(0,0,0,.18);color:#fff;font-size:12px;text-align:center}
+#chat .date:first-child{margin-top:0}
+</style>
+</head>
+<body>
+<div class="app">
+  <section class="panel">
+    <h1>카카오톡 PC 메시지 생성기</h1>
+    <label class="f">상대 이름 <input type="text" id="name" maxlength="20" placeholder="이름"></label>
+    <label class="f">프로필 사진 <input type="file" id="pf" accept="image/*"> <button id="pfClear" type="button">기본</button></label>
+    <label class="f">글꼴 <input type="file" id="font" accept=".ttf,.otf,.woff,.woff2"> <span id="fontState" style="font-size:12px"></span></label>
+    <label class="f">배경색 <input type="color" id="bg" value="#bacee0"></label>
+
+    <div class="add">
+      <select id="nSide" aria-label="보내는 사람"><option value="me">나</option><option value="other">상대</option><option value="date">날짜</option></select>
+      <input type="text" id="nText" placeholder="메시지 입력 후 Enter">
+      <input type="time" id="nTime" value="00:00" aria-label="시간">
+      <button class="pri" id="nAdd" type="button">추가</button>
+    </div>
+
+    <div class="items" id="list"></div>
+
+    <div class="actions">
+      <button class="pri" id="save" type="button">PNG로 저장</button>
+      <select id="scale" aria-label="저장 크기"><option value="1">1배 (실제 캡처와 같은 크기)</option><option value="2">2배</option><option value="3">3배</option></select>
+            <button id="clear" type="button">전체 지우기</button>
+    </div>
+    <p class="hint">같은 사람이 연속으로 보낸 메시지는 자동으로 묶이고, 같은 분(分)이면 마지막 메시지에만 시간이 표시됩니다.</p>
+  </section>
+
+  <section class="stage"><div id="chat"></div></section>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+<script>
+const $=s=>document.querySelector(s), KEY='kakao-pc-gen-v2';
+const el=(t,c,x)=>{const e=document.createElement(t);if(c)e.className=c;if(x!=null)e.textContent=x;return e};
+const SAMPLE=()=>({name:'',pf:'',bg:'#bacee0',items:[]});
+let S;
+try{S=JSON.parse(localStorage.getItem(KEY)||'null')}catch(e){}
+if(!S||!Array.isArray(S.items))S=SAMPLE();
+const persist=()=>{try{localStorage.setItem(KEY,JSON.stringify(S))}catch(e){}};
+
+function fmt(t){const[h,m]=(t||'00:00').split(':').map(Number);return(h<12?'오전':'오후')+' '+(h%12||12)+':'+String(m).padStart(2,'0')}
+
+function defaultAvatar(){
+  const d=el('div','pf');
+  d.innerHTML='<svg viewBox="0 0 40 40"><rect width="40" height="40" fill="#a9b6c3"/><circle cx="20" cy="15" r="7" fill="#e9eef3"/><path d="M5 40c0-9 7-14 15-14s15 5 15 14z" fill="#e9eef3"/></svg>';
+  return d;
+}
+
+function renderChat(){
+  const c=$('#chat');c.innerHTML='';c.style.setProperty('--bg',S.bg||'#bacee0');
+  let prev=null;
+  S.items.forEach((m,i)=>{
+    if(m.side==='date'){c.append(el('div','date',m.text));prev=null;return}
+    const next=S.items[i+1];
+    const cont=prev&&prev.side===m.side;
+    const showTime=!(next&&next.side===m.side&&next.time===m.time);
+    const row=el('div','row '+m.side+(cont?'':' first'));
+    if(m.side==='other'){
+      if(cont)row.append(el('div','sp'));
+      else if(S.pf){const p=el('div','pf'),im=new Image();im.src=S.pf;p.append(im);row.append(p)}
+      else row.append(defaultAvatar());
+    }
+    const col=el('div','col');
+    if(m.side==='other'&&!cont)col.append(el('div','nm',S.name||''));
+    const ln=el('div','ln'),bb=el('div','bb',m.text);
+    let mt=null;
+    if((m.unread&&m.side==='me')||showTime){
+      mt=el('div','mt');
+      if(m.unread&&m.side==='me')mt.append(el('span','u','1'));
+      if(showTime)mt.append(el('span','',fmt(m.time)));
+    }
+    if(m.side==='me'){if(mt)ln.append(mt);ln.append(bb)}else{ln.append(bb);if(mt)ln.append(mt)}
+    col.append(ln);row.append(col);c.append(row);
+    prev=m;
+  });
+}
+
+const SIDES=['me','other','date'],LABEL={me:'나',other:'상대',date:'날짜'};
+function renderList(){
+  const L=$('#list');L.innerHTML='';
+  S.items.forEach((m,i)=>{
+    const r=el('div','it');
+    const sb=el('button','side '+m.side,LABEL[m.side]);sb.type='button';sb.title='클릭해서 변경';
+    sb.onclick=()=>{m.side=SIDES[(SIDES.indexOf(m.side)+1)%3];if(m.side!=='date'&&!m.time)m.time=$('#nTime').value;sync(true)};
+    const tx=el('input');tx.type='text';tx.value=m.text;tx.oninput=()=>{m.text=tx.value;renderChat();persist()};
+    r.append(sb,tx);
+    if(m.side!=='date'){
+      const tm=el('input');tm.type='time';tm.value=m.time||'00:00';tm.oninput=()=>{m.time=tm.value;renderChat();persist()};
+      r.append(tm);
+      if(m.side==='me'){
+        const lb=el('label','un'),cb=el('input');cb.type='checkbox';cb.checked=!!m.unread;
+        cb.onchange=()=>{m.unread=cb.checked;renderChat();persist()};
+        lb.append(cb,document.createTextNode('1'));lb.title='안 읽음 표시';r.append(lb);
+      }else r.append(el('span'));
+    }else{r.append(el('span'),el('span'))}
+    const up=el('button','mini','↑'),dn=el('button','mini','↓'),rm=el('button','mini','✕');
+    [up,dn,rm].forEach(b=>b.type='button');
+    up.onclick=()=>{if(i>0){[S.items[i-1],S.items[i]]=[S.items[i],S.items[i-1]];sync(true)}};
+    dn.onclick=()=>{if(i<S.items.length-1){[S.items[i+1],S.items[i]]=[S.items[i],S.items[i+1]];sync(true)}};
+    rm.onclick=()=>{S.items.splice(i,1);sync(true)};
+    r.append(up,dn,rm);L.append(r);
+  });
+}
+function sync(list){renderChat();if(list)renderList();persist()}
+
+$('#name').value=S.name||'';$('#bg').value=S.bg||'#bacee0';
+$('#name').oninput=e=>{S.name=e.target.value;sync()};
+$('#bg').oninput=e=>{S.bg=e.target.value;sync()};
+$('#pf').onchange=e=>{
+  const f=e.target.files[0];if(!f)return;
+  const fr=new FileReader();fr.onload=()=>{S.pf=fr.result;sync()};fr.readAsDataURL(f);
+};
+$('#pfClear').onclick=()=>{S.pf='';$('#pf').value='';sync()};
+
+function add(){
+  const side=$('#nSide').value,text=$('#nText').value.trim();
+  if(!text)return;
+  const m=side==='date'?{side,text}:{side,text,time:$('#nTime').value||'00:00'};
+  S.items.push(m);$('#nText').value='';sync(true);
+  const L=$('#list');L.scrollTop=L.scrollHeight;$('#nText').focus();
+}
+$('#nAdd').onclick=add;
+$('#nText').onkeydown=e=>{if(e.key==='Enter'&&!e.isComposing){e.preventDefault();add()}};
+$('#nSide').onchange=e=>{$('#nTime').disabled=e.target.value==='date'};
+
+$('#clear').onclick=()=>{if(confirm('모든 메시지를 지울까요?')){S.items=[];sync(true)}};
+$('#save').onclick=async()=>{
+  if(typeof html2canvas==='undefined'){alert('이미지 저장 라이브러리를 불러오지 못했습니다. 인터넷 연결을 확인해 주세요.');return}
+  const c=await html2canvas($('#chat'),{scale:+$('#scale').value,backgroundColor:S.bg||'#bacee0'});
+  const a=document.createElement('a');a.download='kakaotalk-pc.png';a.href=c.toDataURL('image/png');a.click();
+};
+
+$('#font').onchange=async e=>{
+  const f=e.target.files[0];if(!f)return;
+  try{
+    const ff=new FontFace('MalgunLocal',await f.arrayBuffer());
+    document.fonts.add(await ff.load());
+    $('#fontState').textContent='적용됨: '+f.name;renderChat();
+  }catch(err){$('#fontState').textContent='글꼴을 불러오지 못했어요';}
+};
+if(document.fonts&&document.fonts.check('12px "Malgun Gothic"')&&/Windows/.test(navigator.userAgent))$('#fontState').textContent='맑은 고딕 사용 중';
+
+sync(true);
+</script>
+</body>
+</html>
